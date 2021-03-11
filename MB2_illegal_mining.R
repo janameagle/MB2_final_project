@@ -34,7 +34,7 @@ setwd(working_dir)
 
 # load the data
 S2_2020 <- brick("data/S2_20200127.tif")
-L8_2020 <- brick("data/Landsat8_January2020/L8_202001.tif")
+L8_2020 <- brick("data/Landsat8_May2020/L8_202005_small.tif")
 
 # check the properties of the RasterStack
 S2_2020
@@ -77,7 +77,7 @@ gplot(L8_2020) +
   scale_color_viridis_c() +
   facet_wrap(~variable) +
   coord_equal() +
-  labs(title = "Spectral Bands of Sentinel 2 image", x = "Longitude", y = "Latitude")
+  labs(title = "Spectral Bands of Landsat 8 image", x = "Longitude", y = "Latitude")
 
 # Visualize as true-color image, RED:Band3, GREEN: B2, BLUE: B1   ###!
 #plotRGB(S2_2020, r = 1, g = 2, b = 3, stretch = "lin", main = "Sentinel 2 RGB image", axes = TRUE)
@@ -94,11 +94,36 @@ L8 <- ggRGB(L8_2020, r = 4, g = 3, b = 2, stretch = "lin") +
 
 plot_grid(S2, L8, ncol = 2, align = "v")
 
+
+################################################################################
+#### spectral indices ##########################################################
+ndvi <- (L8_2020[[5]] - L8_2020[[4]]) / (L8_2020[[5]] + L8_2020[[4]])
+gplot(ndvi) +
+geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
+scale_fill_gradient(low = "white", high = "darkgreen") +
+coord_equal() +
+labs(title = "NDVI", x = "Longitude", y = "Latitude")
+
+ndwi <- (L8_2020[[5]] - L8_2020[[6]]) / (L8_2020[[5]] + L8_2020[[6]])
+gplot(ndwi) +
+geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
+scale_fill_gradient(low = "#0165f0", high = "white") +
+coord_equal() +
+labs(title = "NDWI", x = "Longitude", y = "Latitude")
+
+ndwi2 <- (L8_2020[[3]] - L8_2020[[5]]) / (L8_2020[[3]] + L8_2020[[5]])
+gplot(ndwi2) +
+geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
+scale_fill_gradient(low = "white", high = "#0165f0") +
+coord_equal() +
+labs(title = "NDWI", x = "Longitude", y = "Latitude")
+
+
 ################################################################################
 #### classification ############################################################ 
 
 # load the training data
-training_data <- readOGR(dsn = paste0(working_dir, "/data"), layer = "traindata") 
+training_data <- readOGR(dsn = paste0(working_dir, "/data/Landsat8_May2020"), layer = "training_data_small") 
 
 #check the training data structure and classes 
 str(training_data)
@@ -115,7 +140,7 @@ classes
 # create random points in training polygons
 # ... output: training_points
 # set.seed(40)
-i <- 1
+#i <- 1
 for (i in 1:length(classes)){
   class_data <- training_data[training_data$classname == classes[i],]
   classpts <- spsample(class_data, type = "random", n=400)
@@ -132,6 +157,7 @@ for (i in 1:length(classes)){
 #points(random_points, pch = 20)
 
 random_points.df <- as.data.frame(random_points)
+head(random_points.df)
 ggplot() +
   ggRGB(L8_2020, r = 4, g = 3, b = 2, stretch = "lin", ggLayer = T) +
   geom_point(random_points.df, mapping = aes(x=x, y=y, color = class)) +
@@ -140,6 +166,8 @@ ggplot() +
   labs(title = "Landsat 8 training points") +
   theme(plot.title = element_text(hjust = 0.5))
 
+# less bands plus indices
+L8_2020 <- stack(L8_2020$L8_202005_small.1, L8_2020$L8_202005_small.2, L8_2020$L8_202005_small.3, L8_2020$L8_202005_small.4, ndvi, ndwi)
 
 
 # extract reflectance values of satellite image at positions of training points
@@ -168,5 +196,21 @@ plot(classification_result)
 classification_result.df <-  data.frame(coordinates(classification_result), getValues(classification_result))
 ggplot(classification_result.df) +
   geom_raster(aes(x, y, fill= classification)) +
-  scale_fill_viridis_c()
+  scale_fill_viridis_c() +
+  coord_equal()
+
+################################################################################
+#### unsupervised classification ###############################################
+
+unsuper_classification <- unsuperClass(L8_2020, nSamples = 1000, nClasses = 4, nStarts = 25, 
+                                       nIter = 100, norm = T, clusterMap = T, algorithm = "Hartigan-Wong")
+plot(unsuper_classification$map)
+
+###########smaller extent#########################
+box <- extent(-1.95, 6.24, -1.86, 6.28)
+L8_2020_small <- crop(L8_2020, box)
+ggRGB(L8_2020_small, r = 4, g = 3, b = 2, stretch = "lin") +
+labs(title = "Landsat 8 RGB image") +
+theme(text = element_text(size = 14)) +
+theme(plot.title = element_text(hjust = 0.5))
   
