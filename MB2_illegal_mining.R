@@ -7,7 +7,7 @@
 # Different classifiers are used and compared                                       #
 # Different input data is used: Sentinel 2, Sentinel 1, Landsat                     #
 #                                                                                   #
-###################################################################################
+#####################################################################################
 
 
 # install and load needed packages
@@ -29,12 +29,12 @@ library(randomForest)
 
 
 # define the working directory
-working_dir <- "C:/Users/jmaie/Documents/R/MB2_illegal_mining"
+working_dir <- "C:/Users/jmaie/Documents/R/MB2_final_project"
 setwd(working_dir)
 
 # load the data
 S2_2020 <- brick("data/S2_20200127.tif")
-L8_2020 <- brick("data/Landsat8_May2020/L8_202005_small.tif")
+L8_2020 <- brick("data/Landsat8_May2020/L8_202005.tif")
 
 # check the properties of the RasterStack
 S2_2020
@@ -213,4 +213,49 @@ ggRGB(L8_2020_small, r = 4, g = 3, b = 2, stretch = "lin") +
 labs(title = "Landsat 8 RGB image") +
 theme(text = element_text(size = 14)) +
 theme(plot.title = element_text(hjust = 0.5))
-  
+
+
+
+################################################################################
+#### radar data ################################################################
+
+S1 <- brick("data/radar/S1_clipped.tif")
+S1  
+crs(S1)
+extent(S1)
+res(S1)
+nlayers(S1)
+names(S1)
+names(S1) <- "intensity"
+
+# plotting the radar data
+
+
+ggR(S1, stretch = "lin") + 
+  theme_minimal() +
+  coord_equal() +
+  labs(title = "Radar image", x = "Longitude", y = "Latitude")
+
+# all images together
+S2 <- ggRGB(S2_2020, r = 1, g = 2, b = 3, stretch = "lin") +
+  labs(title = "Sentinel 2 RGB image") +
+  theme(text = element_text(size = 14)) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+L8 <- ggRGB(L8_2020, r = 4, g = 3, b = 2, stretch = "lin") +
+  labs(title = "Landsat 8 RGB image") +
+  theme(text = element_text(size = 14)) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+S1 <- ggR(S1, stretch = "lin") + 
+  theme_minimal() +
+  coord_equal() +
+  labs(title = "Radar image", x = "Longitude", y = "Latitude")
+
+plot_grid(S2, L8, S1, ncol = 3, align = "v")
+
+
+################################################################################
+#### classification using L8 and S1 ############################################
+
+L8_S2 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, S1$intensity)
