@@ -25,11 +25,10 @@ library(RStoolbox)
 library(rgdal)
 library(cowplot)
 library(randomForest)
-#library()
 
 
 # define the working directory
-working_dir <- "C:/Users/jmaie/Documents/R/MB2_final_project"
+working_dir <- "C:/Users/jmaie/Documents/R/MB2_final_project"  ###!
 setwd(working_dir)
 
 # load the data
@@ -71,13 +70,13 @@ names(L8_2020)
 #  geom_raster(aes(x=x, y=y, fill=S2_2020[,3])) +
 #  scale_fill_gradient(na.value=NA) + coord_equal()
 
-
 gplot(L8_2020) +
   geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
   scale_color_viridis_c() +
   facet_wrap(~variable) +
   coord_equal() +
   labs(title = "Spectral Bands of Landsat 8 image", x = "Longitude", y = "Latitude")
+
 
 # Visualize as true-color image, RED:Band3, GREEN: B2, BLUE: B1   ###!
 #plotRGB(S2_2020, r = 1, g = 2, b = 3, stretch = "lin", main = "Sentinel 2 RGB image", axes = TRUE)
@@ -123,7 +122,7 @@ labs(title = "NDWI", x = "Longitude", y = "Latitude")
 #### classification ############################################################ 
 
 # load the training data
-training_data <- readOGR(dsn = paste0(working_dir, "/data/Landsat8_May2020"), layer = "training_data_small") 
+training_data <- readOGR(dsn = paste0(working_dir, "/data"), layer = "training_data") 
 
 #check the training data structure and classes 
 str(training_data)
@@ -134,15 +133,15 @@ projection(training_data)
 projection(L8_2020)
 
 #get the different classes
-classes <- unique(training_data$classname)
+classes <- unique(training_data$class_name)
 classes
 
 # create random points in training polygons
 # ... output: training_points
-# set.seed(40)
+ set.seed(40)
 #i <- 1
 for (i in 1:length(classes)){
-  class_data <- training_data[training_data$classname == classes[i],]
+  class_data <- training_data[training_data$class_name == classes[i],]
   classpts <- spsample(class_data, type = "random", n=400)
   classpts$class<- rep(classes[i], length(classpts))
   if (i == 1){
@@ -167,13 +166,13 @@ ggplot() +
   theme(plot.title = element_text(hjust = 0.5))
 
 # less bands plus indices
-L8_2020 <- stack(L8_2020$L8_202005_small.1, L8_2020$L8_202005_small.2, L8_2020$L8_202005_small.3, L8_2020$L8_202005_small.4, ndvi, ndwi)
+L8_2020 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
 
 
 # extract reflectance values of satellite image at positions of training points
 #training_values <- raster::extract(L8_2020, y = training_points)
 extracted_values <- over(x= random_points, y = training_data)
-response <- factor(extracted_values$classname)
+response <- factor(extracted_values$class_name)
 training_values <- cbind(response, extract(L8_2020, random_points))
 
 
