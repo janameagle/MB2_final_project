@@ -165,9 +165,6 @@ ggplot() +
   labs(title = "Landsat 8 training points") +
   theme(plot.title = element_text(hjust = 0.5))
 
-# less bands plus indices
-L8_2020 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
-
 
 # extract reflectance values of satellite image at positions of training points
 #training_values <- raster::extract(L8_2020, y = training_points)
@@ -187,50 +184,90 @@ random_forest <- randomForest(as.factor(response) ~. ,
                               confusion = TRUE)
 
 #apply the model to the full raster
-predict(L8_2020, random_forest, filename= "classification", progress='text', format='GTiff', datatype='INT1U',
+classification_result <- predict(L8_2020, random_forest, filename= "results/classification", progress='text', format='GTiff', datatype='INT1U',
         type='response', overwrite=TRUE)
 
-classification_result <- brick("classification.tif")
+#classification_result <- brick("classification.tif")
 plot(classification_result)
 classification_result.df <-  data.frame(coordinates(classification_result), getValues(classification_result))
-ggplot(classification_result.df) +
-  geom_raster(aes(x, y, fill= classification)) +
+plot_class <- ggplot(classification_result.df) +
+              geom_raster(aes(x, y, fill= classification)) +
+              scale_fill_viridis_c() +
+              coord_equal()
+plot_class
+
+################################################################################
+# less bands plus indices
+L8_2020 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
+
+# extract reflectance values of satellite image at positions of training points
+#training_values <- raster::extract(L8_2020, y = training_points)
+extracted_values <- over(x= random_points, y = training_data)
+response <- factor(extracted_values$class_name)
+training_values <- cbind(response, extract(L8_2020, random_points))
+
+
+# convert to dataframe
+#training_values <- data.frame(training_values)
+
+
+#the actual classification statistics using the random Forest method
+random_forest <- randomForest(as.factor(response) ~. , 
+                              data = training_values,
+                              na.action = na.omit,
+                              confusion = TRUE)
+
+#apply the model to the full raster
+classification_indices <- predict(L8_2020, random_forest, filename= "results/classification_indices", progress='text', format='GTiff', datatype='INT1U',
+                                 type='response', overwrite=TRUE)
+
+#classification_result <- brick("classification.tif")
+plot(classification_indices)
+classification_indices <-  data.frame(coordinates(classification_indices), getValues(classification_indices))
+plot_class <- ggplot(classification_indices) +
+  geom_raster(aes(x, y, fill= classification_indices)) +
   scale_fill_viridis_c() +
   coord_equal()
+plot_class
 
 ################################################################################
 #### unsupervised classification ###############################################
 
 unsuper_classification <- unsuperClass(L8_2020, nSamples = 1000, nClasses = 4, nStarts = 25, 
-                                       nIter = 100, norm = T, clusterMap = T, algorithm = "Hartigan-Wong")
-plot(unsuper_classification$map)
+                                       nIter = 100, norm = T, clusterMap = T, algorithm = "Hartigan-Wong",
+                                       filename= "results/unsupervised_classification",progress='text', format='GTiff', datatype='INT1U', overwrite = TRUE)
+plot_unsuper_class <- plot(unsuper_classification$map)
+plot_unsuper_class
+
+
 
 ###########smaller extent#########################
-box <- extent(-1.95, 6.24, -1.86, 6.28)
-L8_2020_small <- crop(L8_2020, box)
-ggRGB(L8_2020_small, r = 4, g = 3, b = 2, stretch = "lin") +
-labs(title = "Landsat 8 RGB image") +
-theme(text = element_text(size = 14)) +
-theme(plot.title = element_text(hjust = 0.5))
+# box <- extent(-1.95, 6.24, -1.86, 6.28)
+# L8_2020_small <- crop(L8_2020, box)
+# ggRGB(L8_2020_small, r = 4, g = 3, b = 2, stretch = "lin") +
+# labs(title = "Landsat 8 RGB image") +
+# theme(text = element_text(size = 14)) +
+# theme(plot.title = element_text(hjust = 0.5))
 
 
 
 ################################################################################
 #### radar data ################################################################
 
-S1 <- brick("data/radar/S1_clipped.tif")
-S1  
-crs(S1)
-extent(S1)
-res(S1)
-nlayers(S1)
-names(S1)
-names(S1) <- "intensity"
+
+# read and check the data
+S1_2020 <- brick("data/radar/S1_clipped.tif")
+S1_2020  
+crs(S1_2020)
+extent(S1_2020)
+res(S1_2020)
+nlayers(S1_2020)
+names(S1_2020)
+names(S1_2020) <- "intensity"
+
 
 # plotting the radar data
-
-
-ggR(S1, stretch = "lin") + 
+ggR(S1_2020, stretch = "lin") + 
   theme_minimal() +
   coord_equal() +
   labs(title = "Radar image", x = "Longitude", y = "Latitude")
@@ -238,15 +275,17 @@ ggR(S1, stretch = "lin") +
 # all images together
 S2 <- ggRGB(S2_2020, r = 1, g = 2, b = 3, stretch = "lin") +
   labs(title = "Sentinel 2 RGB image") +
+  theme_minimal() +
   theme(text = element_text(size = 14)) +
   theme(plot.title = element_text(hjust = 0.5))
 
 L8 <- ggRGB(L8_2020, r = 4, g = 3, b = 2, stretch = "lin") +
   labs(title = "Landsat 8 RGB image") +
+  theme_minimal() +
   theme(text = element_text(size = 14)) +
   theme(plot.title = element_text(hjust = 0.5))
 
-S1 <- ggR(S1, stretch = "lin") + 
+S1 <- ggR(S1_2020, stretch = "lin") + 
   theme_minimal() +
   coord_equal() +
   labs(title = "Radar image", x = "Longitude", y = "Latitude")
@@ -257,4 +296,39 @@ plot_grid(S2, L8, S1, ncol = 3, align = "v")
 ################################################################################
 #### classification using L8 and S1 ############################################
 
-L8_S2 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, S1$intensity)
+# make sure that the extents and resolutions are the same
+extent(S1_2020) <- extent(L8_2020)
+S1_newres <- resample(S1_2020, L8_2020)
+
+L8_S1 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, S1_newres$intensity)
+
+# extract reflectance values of satellite image at positions of training points
+#training_values <- raster::extract(L8_2020, y = training_points)
+extracted_values <- over(x= random_points, y = training_data)
+response <- factor(extracted_values$class_name)
+training_values <- cbind(response, extract(L8_S1, random_points))
+
+
+#the actual classification statistics using the random Forest method
+random_forest <- randomForest(as.factor(response) ~. , 
+                              data = training_values,
+                              na.action = na.omit,
+                              confusion = TRUE)
+
+#apply the model to the full raster
+classification_full <- predict(L8_S1, random_forest, filename= "results/classification_full", progress='text', format='GTiff', datatype='INT1U',
+                                  type='response', overwrite=TRUE)
+
+plot(classification_full)
+classification_full.df <-  data.frame(coordinates(classification_full), getValues(classification_full))
+plot_class_full <- ggplot(classification_full) +
+  geom_raster(aes(x, y, fill= classification_full)) +
+  scale_fill_viridis_c() +
+  coord_equal()
+plot_class_full
+
+
+################################################################################
+#### comparision ###############################################################
+
+plot_grid(plot_class, plot_class_indices, plot_unsuper_class, plot_class_full, ncol = 2, align = "v")
