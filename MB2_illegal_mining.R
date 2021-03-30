@@ -205,6 +205,20 @@ plot_class <- ggplot(classification_result.df) +
               theme_minimal()
 plot_class
 
+
+################################################################################
+#### using rstoolbox
+
+my_classification <- superClass(L8_2020, training_data, trainPartition = 0.8, 
+                                model = 'rf', mode = 'classification', predict = TRUE,
+                                responseCol = "class_name")
+
+colors <- c("yellow", "green", "darkgreen", "deeppink")
+plot(my_classification$map, col = colors, legend = TRUE, box= FALSE)
+legend("topright", legend = unique(training_data$class_name), 
+       fill = colors, title = "Classes", bty="n", ncol = 1)
+
+
 ################################################################################
 # less bands plus indices
 L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
