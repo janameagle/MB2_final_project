@@ -31,7 +31,8 @@ library(mapview)
 library(viridis)
 library(ggspatial)
 library(glcm)
-
+library(dplyr)
+library(magrittr)
 
 # define the working directory
 working_dir <- "C:/Users/jmaie/Documents/R/MB2_final_project"  ###!
@@ -163,12 +164,12 @@ classification_result <- superClass(L8_2020, training_data, trainPartition = 0.7
 # plot_class
 getValidation(classification_result)
 
-classification_result_map <- brick("results/classification.tif")
+classification_result_map <- brick("results/classification.grd")
 classification_result.df <-  data.frame(coordinates(classification_result_map), getValues(classification_result_map))
 
 plot_class <- ggplot(classification_result.df) +
-  geom_raster(aes(x, y, fill= factor(classification))) +
-  scale_fill_viridis(discrete = TRUE) +
+  geom_raster(aes(x, y, fill = layer)) +
+  scale_fill_viridis() +
   coord_equal() +
   theme_minimal() +
   labs(fill = "Classes", title = "L8",
@@ -184,7 +185,7 @@ plot_class
 # less bands plus indices
 L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
 
-classification_indices <- superClass(L8_2020, training_data, trainPartition = 0.7, 
+classification_indices <- superClass(L8_2020_indices, training_data, trainPartition = 0.7, 
                                     model = 'rf', mode = 'classification', predict = TRUE,
                                     responseCol = "class_name", filename = "results/classification_indices",
                                     overwrite = TRUE, verbose = TRUE)
@@ -193,12 +194,12 @@ classification_indices <- superClass(L8_2020, training_data, trainPartition = 0.
 # plot_class_indices
 getValidation(classification_indices)
 
-classification_indices_map <- brick("results/classification_indices.tif")
+classification_indices_map <- brick("results/classification_indices.grd")
 classification_indices.df <-  data.frame(coordinates(classification_indices_map), getValues(classification_indices_map))
 
 plot_class_indices <- ggplot(classification_indices.df) +
-  geom_raster(aes(x, y, fill= factor(classification_indices))) +
-  scale_fill_viridis(discrete = TRUE) +
+  geom_raster(aes(x, y, fill= layer)) +
+  scale_fill_viridis() +
   coord_equal() +
   theme_minimal() +
   labs(fill = "Classes", title = "L8 and indices",
@@ -224,8 +225,8 @@ unsuper_class_map <- brick("results/unsuper_class.tif")
 unsuper_class.df <-  data.frame(coordinates(unsuper_class_map), getValues(unsuper_class_map))
 
 plot_unsuper_class <- ggplot(unsuper_class.df) +
-  geom_raster(aes(x, y, fill= factor(unsuper_class))) +
-  scale_fill_viridis(discrete = TRUE) +
+  geom_raster(aes(x, y, fill= unsuper_class)) +
+  scale_fill_viridis() +
   coord_equal() +
   theme_minimal() +
   labs(fill = "Classes", title = "Unsupervised") +
@@ -238,10 +239,10 @@ plot_unsuper_class
 ################################################################################
 #### radar data ################################################################
 
-# this is Sentinel1 data from 2020, preprocessed in SNAP and in VH polarization
+# this is Sentinel1 data from 2020, preprocessed in SNAP and in VV polarization
 
 # read and check the data
-S1_2020 <- brick("data/radar/S1_clipped.tif")
+S1_2020 <- brick("data/radar/S1_db_clipped.tif")
 S1_2020  
 
 #check the projection, to be sure, reproject
@@ -281,7 +282,7 @@ S1_newres <- resample(S1_2020, L8_2020)
 
 L8_S1 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, S1_newres$intensity)
 
-classification_full <- superClass(L8_2020, training_data, trainPartition = 0.7, 
+classification_full <- superClass(L8_S1, training_data, trainPartition = 0.7, 
                                     model = 'rf', mode = 'classification', predict = TRUE,
                                     responseCol = "class_name", filename = "results/classification_full",
                                     overwrite = TRUE, verbose = TRUE)
@@ -290,12 +291,12 @@ classification_full <- superClass(L8_2020, training_data, trainPartition = 0.7,
 # plot_class_full
 getValidation(classification_full)
 
-classification_full_map <- brick("results/classification_full.tif")
+classification_full_map <- brick("results/classification_full.grd")
 classification_full.df <-  data.frame(coordinates(classification_full_map), getValues(classification_full_map))
 
 plot_class_full <- ggplot(classification_full.df) +
-  geom_raster(aes(x, y, fill= factor(classification_full))) +
-  scale_fill_viridis(discrete = TRUE) +
+  geom_raster(aes(x, y, fill= layer)) +
+  scale_fill_viridis() +
   coord_equal() +
   theme_minimal() +
   labs(fill = "Classes", title = "L8 and S1",
@@ -312,39 +313,37 @@ plot_class_full
 
 # here the grey level co-occurence matrix is calculated as additional input for the classification with S1 data
 
-S1_glcm <- glcm(S1_2020)
-head(S1_glcm)
+S1_glcm <- glcm(S1_2020, statistics = c("mean", "variance", "homogeneity", "dissimilarity", "entropy"))
+S1_glcm
+plot(S1_glcm)
 
-# make sure that the extents and resolutions are the same
-extent(S1_2020) <- extent(L8_2020)
-S1_newres <- resample(S1_2020, L8_2020)
 
-L8_S1 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, S1_newres$intensity)
+# stack it
+S1_glcm_stack <- stack(S1_newres, S1_glcm)
 
-classification_full <- superClass(L8_2020, training_data, trainPartition = 0.7, 
+classification_glcm <- superClass(S1_glcm_stack, training_data, trainPartition = 0.7, 
                                   model = 'rf', mode = 'classification', predict = TRUE,
-                                  responseCol = "class_name", filename = "results/classification_full",
+                                  responseCol = "class_name", filename = "results/classification_glcm",
                                   overwrite = TRUE, verbose = TRUE)
 
 # plot_class_full <- plot(classification_full$map, col = colors, legend = TRUE)
 # plot_class_full
-getValidation(classification_full)
+getValidation(classification_glcm)
 
-classification_full_map <- brick("results/classification_full.tif")
-classification_full.df <-  data.frame(coordinates(classification_full_map), getValues(classification_full_map))
+classification_glcm_map <- brick("results/classification_glcm.grd")
+classification_glcm.df <-  data.frame(coordinates(classification_glcm_map), getValues(classification_glcm_map))
 
-plot_class_full <- ggplot(classification_full.df) +
-  geom_raster(aes(x, y, fill= factor(classification_full))) +
-  scale_fill_viridis(discrete = TRUE) +
+plot_class_glcm <- ggplot(classification_glcm.df) +
+  geom_raster(aes(x, y, fill= layer)) +
+  scale_fill_viridis() +
   coord_equal() +
   theme_minimal() +
-  labs(fill = "Classes", title = "L8 and S1",
-       caption = paste0("Accuracy: ", round(getValidation(classification_full)$Accuracy, digits=4))) +
+  labs(fill = "Classes", title = "S1 and GLCM",
+       caption = paste0("Accuracy: ", round(getValidation(classification_glcm)$Accuracy, digits=4))) +
   theme(plot.caption = element_text(face = "bold"),
         plot.title = element_text(hjust = 0.5, face = "bold"))
 
-plot_class_full
-
+plot_class_glcm
 
 
 ################################################################################
@@ -363,19 +362,15 @@ plot_all
 ################################################################################
 #### calculate mining area #####################################################
 
-area(classification_indices_map, row.names = FALSE)
-class(classification_indices_map$classification_indices)
-classification_indices_map
-res(classification_indices_map)
+# set NAs to 0
+classification_indices.df$layer[is.na(classification_indices.df$layer)] <- 0
 
-#### experimental
+#calculate area with pixel size and count
+myval <- classification_indices.df[classification_indices.df$layer == 3, "layer"] %>% 
+  length() * xres(classification_indices_map) * yres(classification_indices_map)/10000
 
-levelplot(classification_result$map)
-
-classification_utm <- projectRaster(classification_indices_map$classification_indices, CRS("+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs"))
-L8_2020_utm <- projectRaster(L8_2020, crs = 32630 )
-res(L8_2020_utm)
-crs(L8_2020_utm)
+myval
+paste0(c("The illegal mining covers an area of about ", round(myval, 3), "km² in the region of interest."), collapse = "")
 
 
 
