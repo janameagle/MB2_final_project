@@ -153,7 +153,7 @@ classes
 
 
 #### using RStoolbox 
-set.seed(23)
+set.seed(76)
 
 classification_result <- superClass(L8_2020, training_data, trainPartition = 0.7, 
                                 model = 'rf', mode = 'classification', predict = TRUE,
@@ -184,9 +184,16 @@ plot_class
 
 ################################################################################
 # less bands plus indices
-L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
 
-set.seed(23)
+# check correlations of raster layers
+L8_2020_indices_long <- stack(L8_2020, ndvi, ndwi, ndwi2)
+stats <- layerStats(L8_2020_indices_long, "pearson", na.rm = TRUE)
+corr_matrix <- stats$`pearson correlation coefficient`
+
+# L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
+L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.6, L8_2020$L8_202005.9, ndvi, ndwi)
+
+set.seed(76)
 
 classification_indices <- superClass(L8_2020_indices, training_data, trainPartition = 0.7, 
                                     model = 'rf', mode = 'classification', predict = TRUE,
@@ -217,7 +224,7 @@ plot_class_indices
 ################################################################################
 #### unsupervised classification ###############################################
 
-set.seed(23)
+set.seed(76)
 
 unsuper_classification <- unsuperClass(L8_2020, nSamples = 1000, nClasses = 4, nStarts = 25, 
                                        nIter = 100, norm = T, clusterMap = T, algorithm = "Hartigan-Wong",
@@ -287,7 +294,7 @@ S1_newres <- resample(S1_2020, L8_2020)
 
 L8_S1 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, S1_newres$intensity)
 
-set.seed(23)
+set.seed(76)
 
 classification_full <- superClass(L8_S1, training_data, trainPartition = 0.7, 
                                     model = 'rf', mode = 'classification', predict = TRUE,
@@ -328,7 +335,7 @@ plot(S1_glcm)
 # stack it
 S1_glcm_stack <- stack(S1_newres, S1_glcm)
 
-set.seed(23)
+set.seed(76)
 
 classification_glcm <- superClass(S1_glcm_stack, training_data, trainPartition = 0.7, 
                                   model = 'rf', mode = 'classification', predict = TRUE,
@@ -372,10 +379,10 @@ plot_all
 #### calculate mining area #####################################################
 
 # set NAs to 0
-classification_indices.df$layer[is.na(classification_indices.df$layer)] <- 0
+classification_result.df$layer[is.na(classification_result.df$layer)] <- 0
 
 #calculate area with pixel size and count
-myval <- classification_indices.df[classification_indices.df$layer == 3, "layer"] %>% 
+myval <- classification_result.df[classification_result.df$layer == 3, "layer"] %>% 
   length() * xres(classification_indices_map) * yres(classification_indices_map)/10000
 
 myval
@@ -407,3 +414,10 @@ data(lsat)
 lsat
 res(lsat)
 L8_2020
+
+
+##############
+#### check correlations of raster layers
+L8_2020_indices_long <- stack(L8_2020, ndvi, ndwi, ndwi2)
+stats <- layerStats(L8_2020_indices_long, "pearson", na.rm = TRUE)
+corr_matrix <- stats$`pearson correlation coefficient`
