@@ -57,7 +57,7 @@ names(L8_2020)
 
 gplot(L8_2020) +
   geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
-  scale_color_viridis_c() +
+  scale_fill_gradientn(colours = c("#ffffff", "#4cc3ff", "#005884", "#004366", "#000000")) +
   facet_wrap(~variable) +
   coord_equal() +
   labs(title = "Spectral Bands of Landsat 8 image")
@@ -95,7 +95,7 @@ writeRaster(ndvi, "results/ndvi.tif")
 ndwi <- (L8_2020[[5]] - L8_2020[[6]]) / (L8_2020[[5]] + L8_2020[[6]])
 gplot(ndwi) +
   geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
-  scale_fill_gradient(low = "#0165f0", high = "white") +
+  scale_fill_gradient(low = "#004289", high = "white") +
   coord_equal() +
   labs(title = "NDWI") +
   theme_minimal() +
@@ -108,7 +108,7 @@ writeRaster(ndwi, "results/ndwi.tif")
 ndwi2 <- (L8_2020[[3]] - L8_2020[[5]]) / (L8_2020[[3]] + L8_2020[[5]])
 gplot(ndwi2) +
   geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
-  scale_fill_gradient(low = "white", high = "#0165f0") +
+  scale_fill_gradient(low = "white", high = "#004289") +
   coord_equal() +
   labs(title = "another NDWI") +
   theme_minimal() +
@@ -153,6 +153,7 @@ classes
 
 
 #### using RStoolbox 
+set.seed(23)
 
 classification_result <- superClass(L8_2020, training_data, trainPartition = 0.7, 
                                 model = 'rf', mode = 'classification', predict = TRUE,
@@ -185,6 +186,8 @@ plot_class
 # less bands plus indices
 L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
 
+set.seed(23)
+
 classification_indices <- superClass(L8_2020_indices, training_data, trainPartition = 0.7, 
                                     model = 'rf', mode = 'classification', predict = TRUE,
                                     responseCol = "class_name", filename = "results/classification_indices",
@@ -213,6 +216,8 @@ plot_class_indices
 
 ################################################################################
 #### unsupervised classification ###############################################
+
+set.seed(23)
 
 unsuper_classification <- unsuperClass(L8_2020, nSamples = 1000, nClasses = 4, nStarts = 25, 
                                        nIter = 100, norm = T, clusterMap = T, algorithm = "Hartigan-Wong",
@@ -282,6 +287,8 @@ S1_newres <- resample(S1_2020, L8_2020)
 
 L8_S1 <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, S1_newres$intensity)
 
+set.seed(23)
+
 classification_full <- superClass(L8_S1, training_data, trainPartition = 0.7, 
                                     model = 'rf', mode = 'classification', predict = TRUE,
                                     responseCol = "class_name", filename = "results/classification_full",
@@ -320,6 +327,8 @@ plot(S1_glcm)
 
 # stack it
 S1_glcm_stack <- stack(S1_newres, S1_glcm)
+
+set.seed(23)
 
 classification_glcm <- superClass(S1_glcm_stack, training_data, trainPartition = 0.7, 
                                   model = 'rf', mode = 'classification', predict = TRUE,
