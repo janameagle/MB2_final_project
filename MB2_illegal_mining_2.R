@@ -12,7 +12,7 @@
 
 # install and load needed packages
 list_of_packages <- c("raster", "ggplot2", "RStoolbox", "rgdal", "radomForest", 
-                      "patchwork", "mapview", "viridis", "ggspatial", "glcm", "magrittr") 
+                      "patchwork", "mapview", "viridis", "ggspatial", "glcm", "magrittr", "gganimate") 
 new_packages <- list_of_packages[!(list_of_packages %in% installed.packages()[, "Package"])]
 if(length(new_packages)) {
   print("installing : ")
@@ -377,33 +377,61 @@ paste0(c("The illegal mining covers an area of about ", round(myval, 3), "km² in
 
 
 ################################################################################
-#### animation #################################################################
+#### animation of land cover over the years ####################################
 
 library(gganimate)
 
 # read all files from previous years
-L7_2010 <- brick("data/Landsat_older/L7_2010.tif")
-L7_2013 <- brick("data/Landsat_older/L7_2013.tif")
-L8_2016 <- brick("data/Landsat_older/L8_2016.tif")
-L8_2019 <- brick("data/Landsat_older/L8_2019.tif")
+L7_2010 <- brick("data/Landsat_previous/L7_2010.tif")
+L7_2013 <- brick("data/Landsat_previous/L7_2013.tif")
+L8_2016 <- brick("data/Landsat_previous/L8_2016.tif")
+L8_2019 <- brick("data/Landsat_previous/L8_2019.tif")
+L8_2020 <- brick("data/Landsat8_May2020/L8_202005.tif")
 
 # preparation
 pixelsize <- xres(classification_result_map) * yres(classification_result_map)/10000
-years <- c(L7_2010, L7_2013, L8_2016, L8_2019, L8_2020)
+files <- c(L7_2010, L7_2013, L8_2016, L8_2019, L8_2020)
+years <- c(2010, 2013, 2016, 2019, 2020)
+
+# the dataframe for the animation
 areas.all <- data.frame()
 
+j = 1
+# several new classifications and calculation of covered area
+for (i in files) {
+  k = years[j]
 
-for (i in years) {
+  training_data <- readOGR(dsn = paste0(working_dir, "/data/Landsat_previous"), layer = paste0(k, "_training")) 
+
+  training_data <- spTransform(training_data, crs(i))
+  crs(training_data)
   
+    
 set.seed(76)
+file.name <- paste0("data/Landsat_previous/", k, "_classification")
 classification_result <- superClass(i, training_data, trainPartition = 0.7, 
                                     model = 'rf', mode = 'classification', predict = TRUE,
-                                    responseCol = "class_name", filename = "results/classification_prior",
+                                    responseCol = "class_name", filename = file.name,
                                     overwrite = TRUE, verbose = TRUE)
 
-classification_result_map <- brick("results/classification_prior.grd")
+classification_result_map <- brick(paste(file.name, ".grd", sep = ""))
 classification_result.df <-  data.frame(coordinates(classification_result_map), getValues(classification_result_map))
 classification_result.df$layer[is.na(classification_result.df$layer)] <- 0
+
+
+plot_class <- ggplot(classification_result.df) +
+  geom_raster(aes(x, y, fill = layer)) +
+  scale_fill_viridis() +
+  coord_equal() +
+  theme_minimal() +
+  labs(fill = "Classes", title = k,
+       caption = paste0("Accuracy: ", round(getValidation(classification_result)$Accuracy, digits=4))) +
+  theme(plot.caption = element_text(face = "bold"), 
+        plot.title = element_text(hjust = 0.5, face = "bold"))
+
+plot_class
+
+
 
 bareland <- classification_result.df[classification_result.df$layer == 1, "layer"] %>% 
   length() * pixelsize
@@ -414,17 +442,19 @@ mining <- classification_result.df[classification_result.df$layer == 3, "layer"]
 urban <- classification_result.df[classification_result.df$layer == 4, "layer"] %>% 
   length() * pixelsize
 
-areas <- c(mining, urban, bareland, forest)
 
-this.year <- data.frame(classes, areas)
+areas <- c(mining, urban, bareland, forest)
+year <- c(k, k, k, k)
+this.year <- data.frame(classes, areas, year)
 areas.all <- rbind(areas.all, this.year)
 
+j = j+1
 }
 
-areas.all$year <- c(2010, 2010,2010,2010,2013,2013,2013,2013,2016,2016,2016,2016,2019,2019,2019,2019,2020,2020,2020,2020)
+# areas.all includes the areas of all classes of all years
 areas.all
-areas.2013 <- areas.all[areas.all$year == 2013,]
 
+# animate the covered area over the years
 library(gganimate)
 ggplot(areas.all, aes(classes)) + 
   geom_bar(aes(weight = areas, fill = classes)) +
@@ -433,14 +463,10 @@ ggplot(areas.all, aes(classes)) +
     year,
     transition_length = 2,
     state_length = 1) +
-  ease_aes('linear')
-
-
-  
-ggRGB(L7_2010, r = 3, g = 2, b = 1, stretch = "lin") +
-  labs(title = "Landsat 8 RGB image",  x = "Longitude", y = "Latitude") +
+  ease_aes('linear') +
   theme_minimal() +
-  coord_equal() +
-  theme(text = element_text(size = 14)) +
-  theme(plot.title = element_text(hjust = 0.5))
+  theme(legend.position = "none")
+
+#save the animation
+anim_save(filename = "results/animation.gif", animation = last_animation())
 
