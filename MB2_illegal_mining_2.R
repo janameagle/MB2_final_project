@@ -376,6 +376,7 @@ paste0(c("The illegal mining covers an area of about ", round(myval, 3), "km² in
 
 
 
+
 ################################################################################
 #### animation of land cover over the years ####################################
 
@@ -389,12 +390,12 @@ L8_2019 <- brick("data/Landsat_previous/L8_2019.tif")
 L8_2020 <- brick("data/Landsat8_May2020/L8_202005.tif")
 
 # preparation
-pixelsize <- xres(classification_result_map) * yres(classification_result_map)/10000
 files <- c(L7_2010, L7_2013, L8_2016, L8_2019, L8_2020)
 years <- c(2010, 2013, 2016, 2019, 2020)
 
 # the dataframe for the animation
 areas.all <- data.frame()
+
 
 j = 1
 # several new classifications and calculation of covered area
@@ -408,7 +409,7 @@ for (i in files) {
   
     
 set.seed(76)
-file.name <- paste0("data/Landsat_previous/", k, "_classification")
+file.name <- paste0("results/", k, "_classification")
 classification_result <- superClass(i, training_data, trainPartition = 0.7, 
                                     model = 'rf', mode = 'classification', predict = TRUE,
                                     responseCol = "class_name", filename = file.name,
@@ -419,28 +420,37 @@ classification_result.df <-  data.frame(coordinates(classification_result_map), 
 classification_result.df$layer[is.na(classification_result.df$layer)] <- 0
 
 
-plot_class <- ggplot(classification_result.df) +
-  geom_raster(aes(x, y, fill = layer)) +
-  scale_fill_viridis() +
-  coord_equal() +
-  theme_minimal() +
-  labs(fill = "Classes", title = k,
-       caption = paste0("Accuracy: ", round(getValidation(classification_result)$Accuracy, digits=4))) +
-  theme(plot.caption = element_text(face = "bold"), 
-        plot.title = element_text(hjust = 0.5, face = "bold"))
 
-plot_class
+## uncomment this section to see the actual classification results
+# plot_class <- ggplot(classification_result.df) +
+#   geom_raster(aes(x, y, fill = layer)) +
+#   scale_fill_viridis() +
+#   coord_equal() +
+#   theme_minimal() +
+#   labs(fill = "Classes", title = k,
+#        caption = paste0("Accuracy: ", round(getValidation(classification_result)$Accuracy, digits=4))) +
+#   theme(plot.caption = element_text(face = "bold"), 
+#         plot.title = element_text(hjust = 0.5, face = "bold"))
+# 
+# plot_class
 
 
 
-bareland <- classification_result.df[classification_result.df$layer == 1, "layer"] %>% 
-  length() * pixelsize
-forest <- classification_result.df[classification_result.df$layer == 2, "layer"] %>% 
-  length() * pixelsize
-mining <- classification_result.df[classification_result.df$layer == 3, "layer"] %>% 
-  length() * pixelsize
-urban <- classification_result.df[classification_result.df$layer == 4, "layer"] %>% 
-  length() * pixelsize
+# get the partition of the area per land cover type - because for 2010 and 2013 the L7 errors reduce the total area
+bareland <- length(classification_result.df[classification_result.df$layer == 1, "layer"]) / 
+  length(classification_result.df[classification_result.df$layer != 0, "layer"]) 
+forest <- length(classification_result.df[classification_result.df$layer == 2, "layer"]) / 
+  length(classification_result.df[classification_result.df$layer != 0, "layer"]) 
+
+if (k == 1) { # because there is no mining yet
+  urban <- length(classification_result.df[classification_result.df$layer == 3, "layer"]) / 
+    length(classification_result.df[classification_result.df$layer != 0, "layer"])
+} else {
+  mining <- length(classification_result.df[classification_result.df$layer == 3, "layer"]) / 
+    length(classification_result.df[classification_result.df$layer != 0, "layer"])
+  urban <- length(classification_result.df[classification_result.df$layer == 4, "layer"]) / 
+    length(classification_result.df[classification_result.df$layer != 0, "layer"])
+}
 
 
 areas <- c(mining, urban, bareland, forest)
@@ -451,11 +461,11 @@ areas.all <- rbind(areas.all, this.year)
 j = j+1
 }
 
-# areas.all includes the areas of all classes of all years
+# areas.all includes the partitions of areas of all classes over the years
 areas.all
 
+
 # animate the covered area over the years
-library(gganimate)
 ggplot(areas.all, aes(classes)) + 
   geom_bar(aes(weight = areas, fill = classes)) +
   labs(title = 'Year: {closest_state}', x = 'class', y = 'covered area') +
