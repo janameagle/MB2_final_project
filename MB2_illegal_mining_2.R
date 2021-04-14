@@ -5,7 +5,7 @@
 #                                                                                   #
 # Illegal mining spots in south-western Ghana are detected                          #
 # Random Forest classifier is used and results are compared                         #
-# Different input data is used: Landsat 8 and Sentinel 1                            #
+# Different input data is used: Landsat 8 and Sentinel 1, veg indices and glcm      #
 # Land Cover partition of the area of interest is calculated over recent years      #
 # The results are shown in an animation                                             #
 #                                                                                   #
@@ -36,7 +36,7 @@ library(magrittr)
 
 
 # define the working directory
-working_dir <- "C:/Users/jmaie/Documents/R/MB2_final_project"  ###!
+working_dir <- "C:"  #! this needs to be entered
 setwd(working_dir)
 
 #create a folder for our results
@@ -44,7 +44,6 @@ dir.create("results")
 
 # load the data
 L8_2020 <- brick("data/Landsat8_May2020/L8_202005.tif")
-
 
 # check the properties of the RasterStack
 L8_2020
@@ -56,6 +55,8 @@ res(L8_2020)
 nlayers(L8_2020)
 names(L8_2020)
 
+
+# visualization of all bands
 gplot(L8_2020) +
   geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
   scale_fill_gradientn(colours = c("#ffffff", "#4cc3ff", "#005884", "#004366", "#000000")) +
@@ -63,6 +64,7 @@ gplot(L8_2020) +
   coord_equal() +
   labs(title = "Spectral Bands of Landsat 8 image")
 
+# RGB image
 L8 <- ggRGB(L8_2020, r = 4, g = 3, b = 2, stretch = "lin") +
   labs(title = "Landsat 8 RGB image") +
   theme_minimal() +
@@ -72,17 +74,17 @@ L8 <- ggRGB(L8_2020, r = 4, g = 3, b = 2, stretch = "lin") +
 
 L8
 
-# shown in an interactive map
+# shown in an interactive map, to see the location
 viewRGB(L8_2020, r=4, g = 3, b = 2)
 
 
 
 ################################################################################
 #### spectral indices ##########################################################
-# normalized differenced vegetation index 
+# normalized difference vegetation index 
 ndvi <- (L8_2020[[5]] - L8_2020[[4]]) / (L8_2020[[5]] + L8_2020[[4]])
 gplot(ndvi) +
-  geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
+  geom_raster(aes(x=x, y=y, fill=value)) +
   scale_fill_gradient(low = "white", high = "darkgreen") +
   coord_equal() +
   labs(title = "NDVI") +
@@ -92,7 +94,7 @@ gplot(ndvi) +
 writeRaster(ndvi, "results/ndvi.tif")
 
 
-# normalized differenced water index 
+# normalized difference water index 
 ndwi <- (L8_2020[[5]] - L8_2020[[6]]) / (L8_2020[[5]] + L8_2020[[6]])
 gplot(ndwi) +
   geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
@@ -105,7 +107,7 @@ gplot(ndwi) +
 writeRaster(ndwi, "results/ndwi.tif")
 
 
-# another normalized differenced water index 
+# another normalized difference water index 
 ndwi2 <- (L8_2020[[3]] - L8_2020[[5]]) / (L8_2020[[3]] + L8_2020[[5]])
 gplot(ndwi2) +
   geom_raster(aes(x=x, y=y, fill=value)) + ###! was ist value
@@ -125,7 +127,7 @@ writeRaster(ndwi2, "results/ndwi2.tif")
 # load the training data
 training_data <- readOGR(dsn = paste0(working_dir, "/data"), layer = "training_data") 
 
-#check the training data structure and classes 
+#check the training data structure
 str(training_data)
 training_data@data
 
@@ -189,8 +191,9 @@ stats <- layerStats(L8_2020_indices_long, "pearson", na.rm = TRUE)
 corr_matrix <- stats$`pearson correlation coefficient`
 corr_matrix
 
-# L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
-L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.6, L8_2020$L8_202005.9, ndvi, ndwi)
+# different combinations are possible
+L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.2, L8_2020$L8_202005.3, L8_2020$L8_202005.4, ndvi, ndwi)
+# L8_2020_indices <- stack(L8_2020$L8_202005.1, L8_2020$L8_202005.6, L8_2020$L8_202005.9, ndvi, ndwi)
 
 set.seed(76)
 
@@ -269,7 +272,7 @@ S1 <- ggR(S1_2020, stretch = "lin") +
   coord_equal() +
   theme(text = element_text(size = 14)) +
   theme(plot.title = element_text(hjust = 0.5)) +
-  labs(title = "Radar image")
+  labs(title = "Sentinel 1 intensity")
 
 
 # all images together
@@ -353,7 +356,7 @@ plot_class_glcm
 ################################################################################
 #### comparison ################################################################
 
-#plot_grid(plot_class, plot_class_indices, plot_unsuper_class, plot_class_full, nrow = 2, align = "hv")
+# comparing the classification results - except glcm due to bad results
 
 plot_all <- (plot_class + plot_class_indices) / (plot_unsuper_class + plot_class_full) +
   plot_annotation(title = "Comparision of classification inputs") &
@@ -373,7 +376,6 @@ classification_result.df$layer[is.na(classification_result.df$layer)] <- 0
 myval <- classification_result.df[classification_result.df$layer == 3, "layer"] %>% 
   length() * xres(classification_result_map) * yres(classification_result_map)/10000
 
-myval
 paste0(c("The illegal mining covers an area of about ", round(myval, 3), "km² in the region of interest."), collapse = "")
 
 
@@ -398,8 +400,8 @@ years <- c(2010, 2013, 2016, 2019, 2020)
 # the dataframe for the animation
 areas.all <- data.frame()
 
-
 j = 1
+# this takes a while
 # several new classifications and calculation of covered area
 for (i in files) {
   k = years[j]
@@ -423,7 +425,7 @@ classification_result.df$layer[is.na(classification_result.df$layer)] <- 0
 
 
 
-## uncomment this section to see the actual classification results
+# uncomment this section to see the actual classification results
 # plot_class <- ggplot(classification_result.df) +
 #   geom_raster(aes(x, y, fill = layer)) +
 #   scale_fill_viridis() +
@@ -431,7 +433,7 @@ classification_result.df$layer[is.na(classification_result.df$layer)] <- 0
 #   theme_minimal() +
 #   labs(fill = "Classes", title = k,
 #        caption = paste0("Accuracy: ", round(getValidation(classification_result)$Accuracy, digits=4))) +
-#   theme(plot.caption = element_text(face = "bold"), 
+#   theme(plot.caption = element_text(face = "bold"),
 #         plot.title = element_text(hjust = 0.5, face = "bold"))
 # 
 # plot_class
@@ -444,9 +446,10 @@ bareland <- length(classification_result.df[classification_result.df$layer == 1,
 forest <- length(classification_result.df[classification_result.df$layer == 2, "layer"]) / 
   length(classification_result.df[classification_result.df$layer != 0, "layer"]) 
 
-if (k == 1) { # because there is no mining yet
+if (j == 1) { # because there is no mining yet
   urban <- length(classification_result.df[classification_result.df$layer == 3, "layer"]) / 
     length(classification_result.df[classification_result.df$layer != 0, "layer"])
+  mining <- 0
 } else {
   mining <- length(classification_result.df[classification_result.df$layer == 3, "layer"]) / 
     length(classification_result.df[classification_result.df$layer != 0, "layer"])
@@ -467,7 +470,7 @@ j = j+1
 areas.all
 
 
-# animate the covered area over the years
+# animate the covered area over the years, errors included due to classification results
 ggplot(areas.all, aes(classes)) + 
   geom_bar(aes(weight = areas, fill = classes)) +
   labs(title = 'Year: {closest_state}', x = 'class', y = 'covered area') +
